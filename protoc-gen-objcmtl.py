@@ -98,9 +98,8 @@ def generate_code(request, response):
             enum_name = enum_type.name
             iface_file_contents += "typedef enum : NSUInteger {\n"
             iface_file_contents += \
-                ",\n".join("   {prefix}_{name} = {number}".format(prefix=enum_name,
-                                                                  name=value.name,
-                                                                  number=value.number)
+                ",\n".join("   {name} = {number}".format(name=value.name,
+                                                         number=value.number)
                            for value in enum_type.value)
             iface_file_contents += "\n}} {prefix}{name};\n\n".format(prefix=prefix, name=enum_name)
 
@@ -146,12 +145,13 @@ def generate_code(request, response):
                 if is_enum:
                     enum = all_enums[field.type_name.split('.')[-1]]
                     impl_file_contents += dedent("""
-                    + (NSValueTransformer *)stateJSONTransformer {
-                        return [NSValueTransformer mtl_valueMappingTransformerWithDictionary:@{
-                           %s
-                          }];
-                        }
-                    """) % ",\n       ".join('@"{n}": @({n})'.format(n=v.name) for v in enum.value)
+                    + (NSValueTransformer *){name}JSONTransformer {{
+                        return [NSValueTransformer mtl_valueMappingTransformerWithDictionary:@{{
+                           {mapping}
+                          }}];
+                        }}
+                    """).format(mapping=",\n       ".join('@"{n}": @({n})'.format(n=v.name) for v in enum.value),
+                                name=field.name)
 
                 if is_array:
                     impl_file_contents += dedent("""
