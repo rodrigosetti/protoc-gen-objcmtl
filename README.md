@@ -19,3 +19,9 @@ Objective-C names (files, classes, and enums) with a prefix:
 ## Dependencies
 
 Python 3 and Python protobuf library.
+
+## Limitations
+
+ * Doesn't support the "group type", which is deprecated in protobuf version 3.
+ * Doesn't support the type "bytes".
+ * Doesn't support extensions.
