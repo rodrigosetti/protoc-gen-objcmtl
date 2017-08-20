@@ -22,9 +22,9 @@ NUMBER_TYPES = { descriptor.FieldDescriptorProto.TYPE_DOUBLE,
 def parse_parameters(parameter):
     return dict( tuple(x.strip() for x in p.split("=")) for p in parameter.split(",") )
 
-def objc_file_name(prefix, proto_filename):
+def objc_file_name(proto_filename):
     filename, _ = os.path.splitext(os.path.basename(proto_filename))
-    filename = prefix + filename.capitalize()
+    filename = filename.capitalize()
     file_dir = os.path.dirname(proto_filename)
 
     return os.path.join(file_dir, filename)
@@ -33,8 +33,19 @@ def generate_code(request, response):
     parameters = parse_parameters(request.parameter) if request.parameter else {}
     prefix = parameters.get("prefix", "")
 
+    all_enums = {}
     for proto_file in request.proto_file:
-        base_filename = objc_file_name(prefix, proto_file.name)
+        message_types = []
+        all_enums.update((e.name, e) for e in proto_file.enum_type)
+        msg_queue = list(proto_file.message_type)
+        while msg_queue:
+            message_type = msg_queue.pop()
+            message_types.append( message_type )
+            msg_queue.extend( message_type.nested_type )
+            all_enums.update((e.name, e) for e in message_type.enum_type)
+
+    for proto_file in request.proto_file:
+        base_filename = objc_file_name(proto_file.name)
 
         iface_file_name = base_filename + ".h"
         impl_file_name = base_filename + ".m"
@@ -48,7 +59,7 @@ def generate_code(request, response):
 
         # list of imports
         for dependency in proto_file.dependency:
-            imported = objc_file_name(prefix, dependency)
+            imported = objc_file_name(dependency)
             im_path, im_rest = os.path.split(imported)
             common_prefix = os.path.commonprefix([im_path, iface_file_name])
             if im_path.startswith(common_prefix):
@@ -79,13 +90,12 @@ def generate_code(request, response):
             # add nested msgs to queue for processing
             msg_queue.extend( message_type.nested_type )
 
-            # add enums to flatten list
-            enum_types.extend( message_type.enum_type )
+            # add enums to flatten dictionary
+            enum_types.extend(message_type.enum_type)
 
         # render enums
         for enum_type in enum_types:
             enum_name = enum_type.name
-
             iface_file_contents += "typedef enum : NSUInteger {\n"
             iface_file_contents += \
                 ",\n".join("   {prefix}_{name} = {number}".format(prefix=enum_name,
@@ -124,6 +134,7 @@ def generate_code(request, response):
                                     descriptor.FieldDescriptorProto.Type.Name(field.type))
 
                 is_array = field.label == descriptor.FieldDescriptorProto.LABEL_REPEATED
+                is_enum = field.type == descriptor.FieldDescriptorProto.TYPE_ENUM
 
                 iface_file_contents += \
                     "@property {type_name} {maybe_pointer}{name};\n".format(
@@ -132,8 +143,18 @@ def generate_code(request, response):
                             name=field.name
                         )
 
+                if is_enum:
+                    enum = all_enums[field.type_name.split('.')[-1]]
+                    impl_file_contents += dedent("""
+                    + (NSValueTransformer *)stateJSONTransformer {
+                        return [NSValueTransformer mtl_valueMappingTransformerWithDictionary:@{
+                           %s
+                          }];
+                        }
+                    """) % ",\n       ".join('@"{n}": @({n})'.format(n=v.name) for v in enum.value)
+
                 if is_array:
-                    impl_file_contents += dedent("""\
+                    impl_file_contents += dedent("""
                     + (NSValueTransformer *){name}JSONTransformer {{
                         return [MTLJSONAdapter arrayTransformerWithModelClass:[{type_name} class]];
                     }}
