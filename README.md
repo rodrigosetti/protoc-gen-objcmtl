@@ -3,6 +3,8 @@
 Protocol Buffers plugin that generates Objective-C code integrated for
 [Mantle Model Framework](https://github.com/Mantle/Mantle).
 
+See the source and generated [example](example) for a sample of output code.
+
 ## Usage
 
 ```console

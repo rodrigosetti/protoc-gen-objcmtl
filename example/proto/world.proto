@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+import "hello.proto";
+
+message World {
+
+  message NestedMsg {
+    float code = 1;
+  }
+
+  enum NestedEnum {
+    A = 0;
+    B = 1;
+  }
+
+  NestedMsg nested = 1;
+  oneof onef_example {
+    Hello hello = 2;
+    NestedEnum enum_test = 3;
+  }
+
+  repeated string names = 4;
+}
